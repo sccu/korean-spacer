@@ -2,4 +2,5 @@
 
 .idea/
 data/
-corpus.ko
+data/corpus.ko
+models/
