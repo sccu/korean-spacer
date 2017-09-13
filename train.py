@@ -23,6 +23,7 @@ def main():
   parser.add_argument('--embedding-size', type=int, dest="embedding_size", help="Embedding size", default=EMBEDDING_DIM)
   parser.add_argument('--hidden-size', type=int, dest="hidden_size", help="Hidden size", default=HIDDEN_SIZE)
   parser.add_argument('--nlayers', type=int, dest="nlayers", help="Number of RNN layers", default=NUM_LAYER)
+  parser.add_argument('--dropout', type=float, help="Dropout", default=DROPOUT)
   parser.add_argument('-b', '--batch-size', type=int, dest="batch_size", help="Batch size", default=DEFAULT_BATCH_SIZE)
   parser.add_argument('--learning-rate', type=float, dest="learning_rate", help="Initial learning rate", default=0.1)
   parser.add_argument('--learning-rate-decay', type=float, dest="learning_rate_decay", help="Learning rate decay",
