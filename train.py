@@ -43,24 +43,27 @@ def main():
   src = data.Field(include_lengths=True, tokenize=list)
   tgt = data.Field(include_lengths=True, tokenize=list)
 
-  mt_train = datasets.TranslationDataset(
-    path='data/%s' % cmd_args.data, exts=('.src', '.tgt'),
-    fields=(src, tgt))
-  """mt_dev = datasets.TranslationDataset(
-      path='data/dev', exts=('.en', '.ko'),
-      fields=(src,tgt))
-  """
+  mt_train = datasets.TranslationDataset(path='data/%s' % cmd_args.data, exts=('.src', '.tgt'), fields=(src, tgt))
+  mt_dev = datasets.TranslationDataset(path='data/dev', exts=('.src', '.tgt'), fields=(src, tgt))
 
   print("Building vocabularies..")
   src.build_vocab(mt_train)
   tgt.build_vocab(mt_train)
 
   print("Making batches..")
+  # sort key 부호는 GPU에서는 -, CPU에서는 +를 붙여야 하나?
+  SIGN = -1 if CUDA_AVAILABLE else 1
   train_iter = data.BucketIterator(
     dataset=mt_train, batch_size=cmd_args.batch_size,
     device=(None if CUDA_AVAILABLE else -1),
     repeat=False,
-    sort_key=lambda x: len(x.src)
+    sort_key=lambda x: len(x.src) * SIGN
+  )
+  dev_iter = data.BucketIterator(
+    dataset=mt_dev, batch_size=cmd_args.batch_size,
+    device=(None if CUDA_AVAILABLE else -1),
+    repeat=False, train=False,
+    sort_key=lambda x: len(x.src) * SIGN
   )
 
   print("Creating model..")
@@ -77,16 +80,16 @@ def main():
     state_dict = torch.load(cmd_args.model)
     model.load_state_dict(state_dict)
 
-  criterion = torch.nn.CrossEntropyLoss()
+  criterion = torch.nn.CrossEntropyLoss(ignore_index=padding_idx)
   learning_rate = cmd_args.learning_rate
 
   loss_history = []
-  for epoch in range(1, cmd_args.epochs+1):
+  for epoch in range(1, cmd_args.epochs + 1):
     if epoch >= cmd_args.start_decay_at and len(loss_history) > 1 and loss_history[-1] > loss_history[-2]:
       learning_rate *= cmd_args.learning_rate_decay
     optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate)
 
-    losses = []
+    train_losses = []
     correct_answer_count = 0
     total_question_count = 0
     for batch_idx, batch in enumerate(train_iter):
@@ -101,33 +104,45 @@ def main():
       loss.backward()
       optimizer.step()
 
-      losses.append(loss.data[0])
+      train_losses.append(loss.data[0])
       _, prediction = torch.max(y_, dim=1)
       total_question_count += prediction.size()[0]
       correct_answer_count += (prediction == y).float().sum().data[0]
       if batch_idx % cmd_args.batches_per_print == 0:
-        average_loss = np.mean(losses)
+        average_loss = np.mean(train_losses)
 
-        print("Epoch: {}, Batch: {}, Loss: {:.5f}, Accuracy: {:.5f}, LR:{:.5f}".format(epoch, batch_idx, average_loss,
-          correct_answer_count / total_question_count, learning_rate))
+        print(
+          "{}-{}(BS: {}), TrainLoss: {:.5f}, Accuracy: {:.5f}, LR:{:.5f}".format(epoch, batch_idx, cmd_args.batch_size,
+            average_loss, correct_answer_count / total_question_count, learning_rate))
         print("Sentence: {}".format("".join(src.vocab.itos[x[0]] for x in batch.src[0].data)))
         prediction = prediction.view(-1, batch.batch_size)
         print("Prediction: {}".format("".join(tgt.vocab.itos[x[0]] for x in prediction.data)))
         y = y.view(-1, batch.batch_size)
         print("Answer    : {}".format("".join(tgt.vocab.itos[x[0]] for x in y.data)))
 
-        losses = []
+        train_losses = []
         correct_answer_count = 0
         total_question_count = 0
 
-    filename = "models/spacer_{:02d}_{:.4f}.pth".format(epoch, average_loss)
+    cv_losses = []
+    for cv_batch in dev_iter:
+      inputs, src_length = cv_batch.src
+      y_ = model(inputs, src_length)
+      y_ = y_.view(-1, num_classes)
+      y = cv_batch.trg[0]
+      y = y.view(-1)
+      loss = criterion(y_, y)
+      cv_losses.append(loss.data[0])
+    cv_average_loss = np.mean(cv_losses)
+    loss_history.append(cv_average_loss)
+
+    filename = "models/spacer_{:02d}_{:.4f}.pth".format(epoch, cv_average_loss)
     print("Saving a file: {}".format(filename))
     torch.save(model.state_dict(), filename)
 
-    loss_history.append(average_loss)
     print("== Summary ==")
     for i, l in enumerate(loss_history, start=1):
-      print("Epoch: {}, Loss: {}".format(i, l))
+      print("Epoch: {}, CV Loss: {}".format(i, l))
     print("")
 
   print('done')

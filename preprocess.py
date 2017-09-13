@@ -16,12 +16,20 @@ def main():
 
   src_path = os.path.join(cmd_args.outdir, "data.src")
   tgt_path = os.path.join(cmd_args.outdir, "data.tgt")
+  occurrence = set()
   with open(cmd_args.input) as infile:
     with open(src_path, "wt", encoding="utf8") as src_file:
       with open(tgt_path, "wt", encoding="utf8") as tgt_file:
         for line_no, line in enumerate(infile):
           if len(line) - 1 > cmd_args.max_length:
             continue
+          line = line.strip()
+
+          # Remove potential duplicates.
+          if line.strip().replace(" ", "") in occurrence:
+            continue
+          occurrence.add(line.strip().replace(" ", ""))
+
           # Generate train file
           omit = False
           for c in line:
