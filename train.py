@@ -16,8 +16,6 @@ BIDIRECTIONAL = True
 DEFAULT_BATCH_SIZE = 32
 
 
-# num_embeddings, embedding_dim, padding_idx, input_size, hidden_size, num_layers, dropout, bidirectional):
-
 def main():
   parser = argparse.ArgumentParser(description=__doc__,
     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
