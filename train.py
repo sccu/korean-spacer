@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import numpy as np
+import time
 import torch
 from torchtext import data
 from torchtext import datasets
@@ -90,7 +91,9 @@ def main():
     train_losses = []
     correct_answer_count = 0
     total_question_count = 0
-    for batch_idx, batch in enumerate(train_iter):
+    total_processing_chars = 0
+    start_time = time.time()
+    for batch_idx, batch in enumerate(train_iter, 1):
       optimizer.zero_grad()
 
       inputs, src_length = batch.src
@@ -106,12 +109,16 @@ def main():
       _, prediction = torch.max(y_, dim=1)
       total_question_count += prediction.size()[0]
       correct_answer_count += (prediction == y).float().sum().data[0]
+      total_processing_chars += torch.sum(src_length)
       if batch_idx % cmd_args.batches_per_print == 0:
         average_loss = np.mean(train_losses)
+        end_time = time.time()
+        cps = int(total_processing_chars / (end_time - start_time))
 
         print(
-          "{}-{}(BS: {}), TrainLoss: {:.5f}, Accuracy: {:.5f}, LR:{:.5f}".format(epoch, batch_idx, cmd_args.batch_size,
-            average_loss, correct_answer_count / total_question_count, learning_rate))
+          "{}-{}(BS: {}), TrainLoss: {:.4f}, Accuracy: {:.4f}, LR:{:.4f}, Time: {:.2f} s, Speed: {} chars/s".format(
+            epoch, batch_idx, cmd_args.batch_size, average_loss, correct_answer_count / total_question_count,
+            learning_rate, end_time - start_time, cps))
         print("Sentence: {}".format("".join(src.vocab.itos[x[0]] for x in batch.src[0].data)))
         prediction = prediction.view(-1, batch.batch_size)
         print("Prediction: {}".format("".join(tgt.vocab.itos[x[0]] for x in prediction.data)))
@@ -121,6 +128,8 @@ def main():
         train_losses = []
         correct_answer_count = 0
         total_question_count = 0
+        total_processing_chars = 0
+        start_time = end_time
 
     cv_losses = []
     for cv_batch in dev_iter:
