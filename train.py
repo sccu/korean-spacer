@@ -12,7 +12,7 @@ CUDA_AVAILABLE = torch.cuda.is_available()
 EMBEDDING_DIM = 32
 HIDDEN_SIZE = 64
 NUM_LAYER = 2
-DROPOUT = 0.1
+DROPOUT = 0.3
 BIDIRECTIONAL = True
 DEFAULT_BATCH_SIZE = 32
 
@@ -29,7 +29,7 @@ def main():
   parser.add_argument('--learning-rate', type=float, dest="learning_rate", help="Initial learning rate", default=0.1)
   parser.add_argument('--learning-rate-decay', type=float, dest="learning_rate_decay", help="Learning rate decay",
     default=0.5)
-  parser.add_argument('--epochs', type=int, default=5,
+  parser.add_argument('--epochs', type=int, default=10,
     help="Start decaying every epoch after and including this epoch.")
   parser.add_argument('--start-decay-at', dest="start_decay_at", type=int, default=3,
     help="Start decaying every epoch after and including this epoch.")
@@ -69,8 +69,8 @@ def main():
   from spacer import Spacer
   num_classes = len(tgt.vocab)
   padding_idx = tgt.vocab.stoi["<pad>"]
-  model = Spacer(len(src.vocab), num_classes, cmd_args.embedding_size, cmd_args.hidden_size, cmd_args.nlayers, DROPOUT,
-    BIDIRECTIONAL, padding_idx=padding_idx)
+  model = Spacer(len(src.vocab), num_classes, cmd_args.embedding_size, cmd_args.hidden_size, cmd_args.nlayers,
+    cmd_args.dropout, BIDIRECTIONAL, padding_idx=padding_idx)
   if CUDA_AVAILABLE:
     model.cuda(0)
 
@@ -131,6 +131,7 @@ def main():
         total_processing_chars = 0
         start_time = end_time
 
+    model.train(False)
     cv_losses = []
     for cv_batch in dev_iter:
       inputs, src_length = cv_batch.src
@@ -142,6 +143,7 @@ def main():
       cv_losses.append(loss.data[0])
     cv_average_loss = np.mean(cv_losses)
     loss_history.append(cv_average_loss)
+    model.train(True)
 
     filename = "models/spacer_{:02d}_{:.4f}.pth".format(epoch, cv_average_loss)
     print("Saving a file: {}".format(filename))

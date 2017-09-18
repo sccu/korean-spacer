@@ -8,15 +8,14 @@ PRJ_DIR=$(dirname $0)
 mkdir -p $PRJ_DIR/var/log
 LOG=$PRJ_DIR/var/log/$DATETIME.log
 
-EMB_DIM=(32 64)
-HIDDEN=(64 128)
+EMB_DIM=(128 256)
+HIDDEN=(128 256)
 NLAYER=(2 4)
-DROPOUT=(0.1 0.3)
-LR=(1.0 0.5 0.1)
-BATCH_SIZE=64
+DROPOUT=(0.0 0.2)
+#LR=(1.0 0.5 0.1)
 
 if [ "$PLATFORM" == "Linux" ]; then
-  CMD="stdbuf -o 0 python3 ./train.py --epochs 10 -b 512"
+  CMD="stdbuf -o 0 python3 ./train.py --epochs 20 -b 256 --learning-rate 1.0"
 elif [ "$PLATFORM" == "Darwin" ]; then
   CMD="script -q /dev/null python3 ./train.py -b 64 "
 else
